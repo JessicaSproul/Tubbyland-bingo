@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tubbyland Office Bingo</title>
+<meta name="description" content="Office catchphrase bingo, Tubbyland style. Drag a Tubby onto each square and race to the winners board.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='36' fill='%23ffd23f'/%3E%3Ccircle cx='50' cy='53' r='22' fill='%23f6dcc0'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
+<style>
+:root {
+  --sky: #bfe4ff; --sky-deep: #8fcff7; --hill: #7cc65a; --hill-dark: #5aa43c;
+  --bg: #f4fbef; --surface: #ffffff; --surface-2: #eef7e7; --fg: #23331f; --muted: #5d6f57; --line: #d3e5c8;
+  --sun: #ffd23f; --sun-ray: #ffb627; --accent: #e0403a; --win: #fff2b3;
+  --tinky: #8e5bb5; --dipsy: #5fae3d; --laa: #f2cf1d; --po: #e0403a;
+  --face: #f6dcc0; --screen: #d7dee5; --ink: #2a2a2a; --cheek: #f59a9a; --custard: #f7a8c8;
+  --font-display: "Fredoka", "Nunito", ui-rounded, system-ui, sans-serif;
+  --font-body: "Nunito", ui-rounded, system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sky: #23345e; --sky-deep: #1a2648; --hill: #2f6a35; --hill-dark: #24542a;
+    --bg: #141c16; --surface: #1d2820; --surface-2: #233126; --fg: #e8f3e2; --muted: #a6b9a0;
+    --line: #34473a; --win: #4a4120; --accent: #ff6b5e;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+[hidden] { display: none !important; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.wrap { max-width: 1100px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+.sky { background: linear-gradient(var(--sky-deep), var(--sky)); position: relative; overflow: hidden; }
+.sky .wrap { position: relative; padding-block: 28px 76px; display: flex; align-items: center; gap: 20px; }
+.sun { width: 104px; height: 104px; flex: none; }
+.sun .rays { transform-origin: 60px 60px; animation: spin 40s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.intro { min-width: 0; flex: 1; }
+.eyebrow { font-weight: 800; letter-spacing: .12em; text-transform: uppercase; font-size: 12px; opacity: .75; }
+h1 { font-size: clamp(30px, 6vw, 52px); font-weight: 700; line-height: 1.05; letter-spacing: -.01em; }
+.intro p { margin: 8px 0 0; max-width: 56ch; }
+.hills { position: absolute; left: 0; right: 0; bottom: -1px; width: 100%; height: 70px; display: block; }
+
+.user-chip { position: absolute; top: 12px; right: max(16px, env(safe-area-inset-right, 0px)); display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 999px; padding: 4px 4px 4px 4px; font-size: 13px; font-weight: 800; max-width: calc(100% - 32px); }
+.user-chip .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.user-chip .btn { padding: 4px 12px; font-size: 13px; }
+
+.avatar { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; font-family: var(--font-display); font-weight: 600; font-size: 13px; color: #fff; overflow: hidden; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+main .wrap { padding-block: 8px 48px; }
+.game { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 32px; align-items: start; }
+@media (max-width: 860px) { .game { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+
+.card-panel { min-width: 0; }
+.howto { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+.letters, .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; max-width: 640px; }
+.letters { margin-bottom: 6px; }
+.letters span { text-align: center; font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 5vw, 34px); line-height: 1.1; }
+.letters span:nth-child(1), .letters span:nth-child(5) { color: var(--tinky); }
+.letters span:nth-child(2) { color: var(--dipsy); }
+.letters span:nth-child(3) { color: var(--laa); -webkit-text-stroke: 1px rgba(0,0,0,.25); }
+.letters span:nth-child(4) { color: var(--po); }
+
+.cell {
+  position: relative; aspect-ratio: 1 / 1; max-width: 100%;
+  background: var(--surface); border: 2px solid var(--line); border-radius: 14px;
+  padding: 4px; display: flex; align-items: center; justify-content: center; text-align: center;
+  font-weight: 700; font-size: clamp(9.5px, 2.3vw, 14px); line-height: 1.2; cursor: pointer;
+  overflow: hidden; transition: border-color .15s, background .15s, transform .15s;
+  -webkit-user-select: none; user-select: none;
+}
+.cell.long { font-size: clamp(9px, 2vw, 12.5px); }
+.cell.xlong { font-size: clamp(8.5px, 1.8vw, 11.5px); line-height: 1.15; }
+.cell .phrase { position: relative; z-index: 1; overflow-wrap: anywhere; }
+.cell.marked .phrase { opacity: .35; }
+.cell.free { background: var(--surface-2); }
+.cell.free .phrase { opacity: 1; font-family: var(--font-display); font-size: clamp(10px, 2.4vw, 15px); margin-bottom: 30%; }
+.cell.free svg.bowl { position: absolute; bottom: 8%; width: 46%; opacity: .9; }
+.cell.drop-target { border-color: var(--accent); transform: scale(1.04); }
+.cell.in-line { background: var(--win); border-color: var(--sun-ray); }
+.cell .mark { position: absolute; inset: 6% 14% 2%; z-index: 2; cursor: grab; touch-action: none; display: flex; justify-content: center; }
+.cell .mark svg { height: 100%; width: auto; filter: drop-shadow(0 2px 2px rgba(0,0,0,.18)); }
+.cell .mark.pop { animation: pop .28s ease-out; }
+@keyframes pop { from { transform: scale(.4) translateY(20%); } 60% { transform: scale(1.12); } to { transform: scale(1); } }
+body.selecting .cell:not(.marked):not(.free):hover { border-color: var(--accent); }
+
+.card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
+.btn { border: 2px solid var(--line); background: var(--surface); border-radius: 999px; padding: 8px 16px; font-weight: 800; cursor: pointer; }
+.btn:hover { border-color: var(--fg); }
+.btn:disabled { opacity: .6; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.status { font-size: 13px; color: var(--muted); }
+
+.side { display: grid; gap: 20px; min-width: 0; }
+.boards { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; align-items: start; }
+@media (max-width: 720px) { .boards { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 2px solid var(--line); border-radius: 20px; padding: 16px; }
+.panel h2 { font-size: 20px; font-weight: 600; }
+.panel .sub { color: var(--muted); font-size: 13px; margin: 2px 0 12px; }
+
+.tray-panel { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 5; }
+.tray { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.tubby-btn { border: 2px solid transparent; background: var(--surface-2); border-radius: 16px; padding: 8px 4px 6px; display: grid; justify-items: center; gap: 4px; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
+.tubby-btn svg { height: 64px; width: auto; transition: transform .15s; }
+.tubby-btn:hover svg { transform: translateY(-3px) rotate(-4deg); }
+.tubby-btn span { font-size: 11px; font-weight: 800; line-height: 1.1; text-align: center; }
+.tubby-btn[aria-pressed="true"] { border-color: var(--accent); background: var(--surface); }
+
+.ghost { position: fixed; left: 0; top: 0; width: 64px; height: 88px; pointer-events: none; z-index: 50; transform: translate(-50%, -60%); filter: drop-shadow(0 6px 6px rgba(0,0,0,.25)); }
+.ghost svg { width: 100%; height: 100%; }
+
+.winners { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.winners li { display: grid; grid-template-columns: 28px 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; background: var(--surface-2); border-radius: 12px; }
+.winners li.first { background: var(--win); }
+.winners .place { font-family: var(--font-display); font-weight: 700; font-size: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+.winners .who { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.winners .when { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.empty { color: var(--muted); font-size: 14px; margin: 0; }
+.board-note { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+
+.legend { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--muted); font-weight: 700; }
+.legend li { display: flex; align-items: center; gap: 5px; }
+.swatch { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+.heat-1 { background: var(--dipsy); }
+.heat-3 { background: var(--laa); }
+.heat-4 { background: var(--po); }
+.heat-5 { background: var(--tinky); }
+.standings { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.standings li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: center; }
+.standings .top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.standings .who { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.standings .score { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.standings .track { height: 12px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: 3px; }
+.standings .bar { height: 100%; border-radius: 999px; min-width: 6px; transition: width .4s ease; }
+.standings li.me .who::after { content: " (you)"; color: var(--muted); font-weight: 700; }
+.owner-tools { margin-top: 12px; padding-top: 12px; border-top: 2px dashed var(--line); display: grid; gap: 8px; }
+.confirm { display: grid; gap: 8px; font-size: 13px; }
+.confirm .row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Sign-in and setup */
+.auth { max-width: 420px; margin: 0 auto; display: grid; gap: 14px; }
+.auth .tubbies { display: flex; justify-content: center; gap: 6px; }
+.auth .tubbies svg { height: 64px; width: auto; }
+.auth h2 { font-size: 26px; text-align: center; }
+.auth .lead { text-align: center; color: var(--muted); margin: 0; }
+.google-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
+.google-btn svg { width: 18px; height: 18px; }
+.divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+.divider::before, .divider::after { content: ""; flex: 1; height: 2px; background: var(--line); }
+.auth form { display: grid; gap: 10px; }
+.field { display: grid; gap: 4px; }
+.field label { font-weight: 800; font-size: 13px; }
+.field input { border: 2px solid var(--line); background: var(--bg); border-radius: 12px; padding: 10px 12px; width: 100%; }
+.field input:focus { border-color: var(--accent); outline: none; }
+.auth .links { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 800; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.error { color: var(--accent); font-weight: 700; font-size: 13px; margin: 0; }
+.ok { color: var(--dipsy); font-weight: 700; font-size: 13px; margin: 0; }
+.setup code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
+
+/* Celebration */
+.celebrate { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(20, 40, 20, .55); padding: 16px; }
+.celebrate .box { background: var(--surface); border-radius: 28px; padding: 28px 24px; text-align: center; max-width: 420px; width: 100%; border: 3px solid var(--sun); }
+.celebrate h2 { font-size: clamp(34px, 9vw, 52px); color: var(--accent); line-height: 1; }
+.celebrate p { margin: 10px 0 18px; }
+.dance { display: flex; justify-content: center; gap: 6px; margin-bottom: 12px; }
+.dance svg { height: 70px; width: auto; animation: hop .6s ease-in-out infinite alternate; }
+.dance svg:nth-child(2) { animation-delay: .15s; } .dance svg:nth-child(3) { animation-delay: .3s; } .dance svg:nth-child(4) { animation-delay: .45s; }
+@keyframes hop { to { transform: translateY(-14px); } }
+
+@media (max-width: 860px) {
+  .tray-panel { order: -1; padding: 10px; border-radius: 16px; }
+  .tray-panel .sub { display: none; }
+  .tray-panel h2 { font-size: 16px; margin-bottom: 6px; }
+  .tubby-btn svg { height: 48px; }
+  .side { display: contents; }
+  .boards { order: 1; }
+}
+@media (max-width: 520px) {
+  .sky .wrap { flex-direction: column; align-items: flex-start; gap: 8px; padding-block: 56px 64px; }
+  .sun { width: 72px; height: 72px; }
+  .letters, .grid { gap: 4px; }
+  .cell { border-radius: 10px; padding: 3px; aspect-ratio: auto; min-height: 76px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sun .rays, .dance svg, .cell .mark.pop { animation: none; }
+  .standings .bar { transition: none; }
+  .cell, .tubby-btn svg { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="sky">
+  <div class="user-chip" id="user-chip" hidden>
+    <span class="avatar" id="user-avatar"></span>
+    <span class="name" id="user-name"></span>
+    <button class="btn" id="sign-out" type="button">Sign out</button>
+  </div>
+  <div class="wrap">
+    <svg class="sun" viewBox="0 0 120 120" aria-hidden="true">
+      <g class="rays">
+        <g style="fill:var(--sun-ray)">
+          <path d="M60 2 L66 22 L54 22 Z"/><path d="M60 118 L54 98 L66 98 Z"/>
+          <path d="M2 60 L22 54 L22 66 Z"/><path d="M118 60 L98 66 L98 54 Z"/>
+          <path d="M19 19 L36 30 L30 36 Z"/><path d="M101 101 L84 90 L90 84 Z"/>
+          <path d="M101 19 L90 36 L84 30 Z"/><path d="M19 101 L30 84 L36 90 Z"/>
+        </g>
+      </g>
+      <circle cx="60" cy="60" r="36" style="fill:var(--sun)"/>
+      <circle cx="60" cy="62" r="22" style="fill:var(--face)"/>
+      <circle cx="52" cy="58" r="2.6" style="fill:var(--ink)"/>
+      <circle cx="68" cy="58" r="2.6" style="fill:var(--ink)"/>
+      <circle cx="46" cy="66" r="4" style="fill:var(--cheek)" opacity=".7"/>
+      <circle cx="74" cy="66" r="4" style="fill:var(--cheek)" opacity=".7"/>
+      <path d="M52 68 Q60 76 68 68" style="fill:none;stroke:var(--ink);stroke-width:2.4;stroke-linecap:round"/>
+    </svg>
+    <div class="intro">
+      <div class="eyebrow">Eh-oh, web team</div>
+      <h1>Tubbyland Office Bingo</h1>
+      <p>Every time one of these happens around the office, drag a Tubby onto it. Five in a row (across, down, or corner to corner) and you're on the winners board.</p>
+    </div>
+  </div>
+  <svg class="hills" viewBox="0 0 1200 70" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 50 Q200 0 420 40 T820 30 T1200 36 V70 H0 Z" style="fill:var(--hill-dark)"/>
+    <path d="M0 62 Q300 20 600 54 T1200 50 V70 H0 Z" style="fill:var(--hill)"/>
+    <path d="M0 70 V66 Q600 58 1200 66 V70 Z" style="fill:var(--bg)"/>
+  </svg>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <section class="panel auth setup" id="setup-view" hidden>
+      <h2>Almost ready</h2>
+      <p class="lead">This copy of the game isn't connected to Firebase yet. Paste your project's settings into <code>firebase-config.js</code>, then reload. The README walks through it.</p>
+    </section>
+
+    <p class="empty" id="loading-view" style="text-align:center">Waking up the Tubbies…</p>
+
+    <section class="panel auth" id="auth-view" hidden aria-labelledby="auth-title">
+      <div class="tubbies" id="auth-tubbies" aria-hidden="true"></div>
+      <h2 id="auth-title">Sign in to play</h2>
+      <p class="lead" id="auth-lead">Your card, your marks, and your wins are saved to your account, so you can pick up on any device.</p>
+      <button class="btn google-btn" id="google-sign-in" type="button">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+        Continue with Google
+      </button>
+      <div class="divider">or use your email</div>
+      <form id="email-form" novalidate>
+        <div class="field" id="name-field" hidden>
+          <label for="auth-name">Your name</label>
+          <input id="auth-name" name="name" type="text" autocomplete="name" maxlength="40">
+        </div>
+        <div class="field">
+          <label for="auth-email">Email</label>
+          <input id="auth-email" name="email" type="email" autocomplete="email" required>
+        </div>
+        <div class="field">
+          <label for="auth-password">Password</label>
+          <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="6" required>
+        </div>
+        <p class="error" id="auth-error" role="alert" hidden></p>
+        <p class="ok" id="auth-ok" role="status" hidden></p>
+        <button class="btn primary" id="email-submit" type="submit">Sign in</button>
+      </form>
+      <div class="links">
+        <button class="link-btn" id="toggle-mode" type="button">New here? Create an account</button>
+        <button class="link-btn" id="forgot" type="button">Forgot password?</button>
+      </div>
+    </section>
+
+    <div class="game" id="game-view" hidden>
+      <section class="card-panel" aria-label="Your bingo card">
+        <p class="howto">Drag a Tubby onto a square. Or tap a Tubby, then tap the square. To take a mark back, drag it off the card or double-tap it.</p>
+        <div class="letters" aria-hidden="true"><span>T</span><span>U</span><span>B</span><span>B</span><span>Y</span></div>
+        <div class="grid" id="grid" role="grid" aria-label="Your bingo card"></div>
+        <div class="card-actions">
+          <button class="btn" id="hug" type="button">Big Hug (clear my marks)</button>
+          <span class="status" id="status" aria-live="polite"></span>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="panel tray-panel" aria-labelledby="tray-title">
+          <h2 id="tray-title">Tubby tray</h2>
+          <p class="sub">Grab any Tubby, as many times as you like.</p>
+          <div class="tray" id="tray"></div>
+        </section>
+      </aside>
+
+      <div class="boards">
+        <section class="panel standings-panel" aria-labelledby="standings-title">
+          <h2 id="standings-title">Standings</h2>
+          <p class="sub">Everyone playing this round. The bar shows squares marked; its color shows how close they are to BINGO.</p>
+          <ul class="legend" aria-label="Bar colors">
+            <li><span class="swatch heat-1"></span>Warming up</li>
+            <li><span class="swatch heat-3"></span>3 in a row</li>
+            <li><span class="swatch heat-4"></span>1 away!</li>
+            <li><span class="swatch heat-5"></span>BINGO</li>
+          </ul>
+          <div id="standings"><p class="empty">Loading players…</p></div>
+        </section>
+
+        <section class="panel board-panel" aria-labelledby="board-title">
+          <h2 id="board-title">Winners board</h2>
+          <p class="sub" id="round-label">Round 1</p>
+          <div id="board"><p class="empty">Checking the board…</p></div>
+          <p class="board-note" id="board-note" hidden></p>
+          <div class="owner-tools" id="owner-tools" hidden>
+            <button class="btn" id="new-round" type="button">Start a new round</button>
+            <div class="confirm" id="confirm" hidden>
+              <span>This clears the winners board and deals everyone a fresh card. Go ahead?</span>
+              <div class="row">
+                <button class="btn primary" id="confirm-yes" type="button">Yes, new round</button>
+                <button class="btn" id="confirm-no" type="button">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="celebrate" id="celebrate" hidden role="dialog" aria-modal="true" aria-labelledby="celebrate-title">
+  <div class="box">
+    <div class="dance" id="dance"></div>
+    <h2 id="celebrate-title">Eh-oh! BINGO!</h2>
+    <p id="celebrate-msg">Big hug! You got five in a row.</p>
+    <button class="btn primary" id="celebrate-close" type="button">Again! Again!</button>
+  </div>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
