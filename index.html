@@ -188,6 +188,25 @@ body.selecting .cell:not(.marked):not(.free):hover { border-color: var(--accent)
 .suggestions .from { font-size: 12px; color: var(--muted); }
 .suggestions .row { display: flex; gap: 6px; flex-wrap: wrap; }
 .suggestions .btn { padding: 4px 12px; font-size: 13px; }
+.suggestions .flag { margin: 0; padding: 8px 10px; border-radius: 10px; border: 2px solid var(--sun-ray); background: var(--win); font-size: 13px; display: grid; gap: 8px; }
+.suggestions .compare { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+.suggestions .compare .score { font-size: 12px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.suggestions .mini { margin: 0; display: grid; gap: 4px; justify-items: center; }
+.suggestions .mini-square { width: 100%; max-width: 120px; aspect-ratio: 1 / 1; background: var(--surface); border: 2px solid var(--line); border-radius: 12px; padding: 6px; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: 700; font-size: 12px; line-height: 1.2; overflow-wrap: anywhere; overflow: hidden; }
+.suggestions .mini figcaption { font-size: 11px; color: var(--muted); text-align: center; }
+.phrase-manager { margin-top: 6px; }
+.phrase-manager summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.phrase-manager .body { display: grid; gap: 8px; margin-top: 8px; }
+.phrase-manager .count { font-size: 13px; color: var(--muted); }
+.phrase-manager input[type="search"] { border: 2px solid var(--line); background: var(--bg); border-radius: 10px; padding: 6px 10px; width: 100%; }
+.phrase-manager input[type="search"]:focus { border-color: var(--accent); outline: none; }
+.phrase-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 360px; overflow-y: auto; }
+.phrase-list li { background: var(--surface-2); border-radius: 10px; padding: 6px 6px 6px 10px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; font-size: 14px; }
+.phrase-list .text { grid-column: 1; }
+.phrase-list .tag { grid-column: 1; font-size: 12px; color: var(--muted); }
+.phrase-list .tag:empty { display: none; }
+.phrase-list .btn { grid-column: 2; grid-row: 1 / span 2; padding: 4px 12px; font-size: 13px; }
+.phrase-list li.leaving .text { text-decoration: line-through; color: var(--muted); }
 
 /* Celebration */
 .celebrate { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(20, 40, 20, .55); padding: 16px; }
@@ -348,6 +367,15 @@ body.selecting .cell:not(.marked):not(.free):hover { border-color: var(--accent)
               <p class="sub">Fix any typos, then add it. Added phrases show up on cards starting next round.</p>
               <div id="suggestions"><p class="empty">No suggestions waiting.</p></div>
             </div>
+            <details class="phrase-manager">
+              <summary>Manage card phrases</summary>
+              <div class="body">
+                <span class="count" id="phrase-count"></span>
+                <p class="sub">Removed phrases come off cards when the next round starts, so nobody's current card changes.</p>
+                <input type="search" id="phrase-filter" placeholder="Search phrases" aria-label="Search phrases">
+                <div id="phrase-list"><p class="empty">Loading phrases…</p></div>
+              </div>
+            </details>
           </div>
         </section>
       </div>

@@ -98,6 +98,7 @@ const state = {
   players: [],
   winners: [],
   extraPhrases: [],
+  removedPhrases: [],
   suggestions: [],
   unsubscribers: []
 };
@@ -223,15 +224,31 @@ const grid = $("grid");
 const tray = $("tray");
 const statusEl = $("status");
 
+/* ---------- Phrase pool ---------- */
+
+const normalizePhrase = text => String(text).toLowerCase().replace(/[“”"'‘’!?.,*()-]/g, " ").replace(/\s+/g, " ").trim();
+
+const isRemovedBy = (entry, round) => state.removedPhrases.some(r =>
+  Number(r.fromRound) <= round &&
+  (entry.source === "added" ? r.phraseId === entry.id : r.source === "builtin" && r.text === entry.text));
+
+const pendingRemoval = (entry, round) => state.removedPhrases.find(r =>
+  Number(r.fromRound) > round &&
+  (entry.source === "added" ? r.phraseId === entry.id : r.source === "builtin" && r.text === entry.text));
+
+// Every phrase a card could use in a given round. Approved suggestions and removals
+// take effect from a set round, in a fixed order, so a card never changes partway through a round.
+const phraseEntries = round => [
+  ...PHRASES.map(text => ({ text, source: "builtin" })),
+  ...state.extraPhrases
+    .filter(p => Number(p.fromRound) <= round)
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .map(p => ({ text: p.text, source: "added", id: p.id }))
+].filter(entry => !isRemovedBy(entry, round));
+
 const dealCard = () => {
   const rand = seededRandom(hashString(`${state.user.uid}|round-${state.round}`));
-  // Approved suggestions join the pool from the round they were added for, in a fixed
-  // order, so a card never changes partway through a round.
-  const extras = state.extraPhrases
-    .filter(p => Number(p.fromRound) <= state.round)
-    .sort((a, b) => (a.id < b.id ? -1 : 1))
-    .map(p => p.text);
-  const pool = [...PHRASES, ...extras];
+  const pool = phraseEntries(state.round).map(entry => entry.text);
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   const picks = pool.slice(0, CARD_SQUARES);
   picks.splice(FREE_INDEX, 0, "Tubby Custard");
@@ -497,7 +514,6 @@ $("hug").addEventListener("click", () => {
 const SUGGEST_MAX = 90;
 const suggestDialog = $("suggest-dialog");
 const suggestText = $("suggest-text");
-const normalizePhrase = text => text.toLowerCase().replace(/[“”"'‘’!?.,*-]/g, "").replace(/\s+/g, " ").trim();
 const setSuggestError = text => { $("suggest-error").textContent = text; $("suggest-error").hidden = !text; };
 const updateSuggestCount = () => { $("suggest-count").textContent = `${suggestText.value.length}/${SUGGEST_MAX}`; };
 
@@ -517,7 +533,7 @@ $("suggest-form").addEventListener("submit", async event => {
   const text = suggestText.value.replace(/\s+/g, " ").trim();
   if (!text) { setSuggestError("Type a phrase first."); return; }
   if (text.length > SUGGEST_MAX) { setSuggestError(`Keep it to ${SUGGEST_MAX} characters so it fits on a square.`); return; }
-  const known = [...PHRASES, ...state.extraPhrases.map(p => p.text)].map(normalizePhrase);
+  const known = phraseEntries(state.round + 1).map(entry => normalizePhrase(entry.text));
   if (known.includes(normalizePhrase(text))) { setSuggestError("That one's already in the game."); return; }
   $("suggest-submit").disabled = true;
   try {
@@ -535,6 +551,77 @@ $("suggest-form").addEventListener("submit", async event => {
     $("suggest-submit").disabled = false;
   }
 });
+
+/* Similarity check: flags suggestions that read a lot like a phrase already in the game.
+   It compares the meaningful words and the letter pairs, and keeps the higher score. */
+const SIMILAR_AT = 0.6;
+const STOP_WORDS = new Set("a an the is to of and or in on at it its for with he she they we you i me my our your his her their this that be are was were has have had just so".split(" "));
+const stemWord = w => (w.length > 4 ? w.replace(/(ing|ed|es|s)$/, "") : w);
+const keyWords = text => normalizePhrase(text).split(" ").filter(w => w && !STOP_WORDS.has(w)).map(stemWord);
+const letterPairs = text => {
+  const s = normalizePhrase(text).replace(/ /g, "");
+  const pairs = [];
+  for (let i = 0; i < s.length - 1; i++) pairs.push(s.slice(i, i + 2));
+  return pairs;
+};
+const overlap = (a, b) => {
+  if (!a.length || !b.length) return 0;
+  const rest = [...b];
+  let hits = 0;
+  a.forEach(x => { const i = rest.indexOf(x); if (i > -1) { hits++; rest.splice(i, 1); } });
+  return (2 * hits) / (a.length + b.length);
+};
+const similarity = (a, b) => Math.max(overlap(keyWords(a), keyWords(b)), overlap(letterPairs(a), letterPairs(b)));
+
+const similarMatches = (text, skipId) => {
+  if (!text.trim()) return [];
+  const candidates = [
+    ...phraseEntries(state.round + 1).map(entry => ({ text: entry.text, where: "in the game" })),
+    ...state.suggestions.filter(s => s.id !== skipId && s.text).map(s => ({ text: s.text, where: "another suggestion" }))
+  ];
+  return candidates
+    .map(c => ({ ...c, score: similarity(text, c.text) }))
+    .filter(c => c.score >= SIMILAR_AT)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+};
+
+const miniSquare = (text, label) => {
+  const wrap = document.createElement("figure");
+  wrap.className = "mini";
+  const square = document.createElement("div");
+  square.className = "mini-square";
+  square.textContent = text;
+  const caption = document.createElement("figcaption");
+  caption.textContent = label;
+  wrap.append(square, caption);
+  return wrap;
+};
+
+// Shows the suggestion and each close match as bingo squares side by side, so the admin
+// can compare them before deciding.
+const renderFlag = (flag, text, skipId) => {
+  const matches = similarMatches(text, skipId);
+  flag.hidden = !matches.length;
+  flag.replaceChildren();
+  if (!matches.length) return;
+  const title = document.createElement("strong");
+  title.textContent = matches.length > 1 ? "Looks similar to these squares:" : "Looks similar to this square:";
+  flag.append(title);
+  matches.forEach(m => {
+    const pair = document.createElement("div");
+    pair.className = "compare";
+    const score = document.createElement("span");
+    score.className = "score";
+    score.textContent = `${Math.round(m.score * 100)}% match`;
+    pair.append(
+      miniSquare(text, "This suggestion"),
+      score,
+      miniSquare(m.text, m.where === "in the game" ? "Already in the game" : "Another suggestion")
+    );
+    flag.append(pair);
+  });
+};
 
 const renderSuggestions = () => {
   const box = $("suggestions");
@@ -559,10 +646,15 @@ const renderSuggestions = () => {
     const from = document.createElement("span");
     from.className = "from";
     from.textContent = `Suggested by ${item.name || "a player"}`;
+    const flag = document.createElement("p");
+    flag.className = "flag";
+    flag.setAttribute("aria-live", "polite");
+    renderFlag(flag, input.value, item.id);
+    input.addEventListener("input", () => renderFlag(flag, input.value, item.id));
     const row = document.createElement("div");
     row.className = "row";
     row.innerHTML = '<button class="btn primary" type="button" data-action="add">Add to game</button><button class="btn" type="button" data-action="dismiss">Dismiss</button>';
-    li.append(input, from, row);
+    li.append(input, from, flag, row);
     list.append(li);
   });
   box.replaceChildren(list);
@@ -592,11 +684,105 @@ $("suggestions").addEventListener("click", async e => {
     });
     batch.delete(doc(db, "suggestions", id));
     await batch.commit();
-    state.extraPhrases.push({ id: "pending", text, fromRound: nextRound });
     showNote(`Added. It can show up on cards starting round ${nextRound}.`);
   } catch {
     li.querySelectorAll("button").forEach(b => { b.disabled = false; });
     showNote("Couldn't update that suggestion. Make sure your account is listed as an admin.");
+  }
+});
+
+/* ---------- Admin: manage card phrases ---------- */
+
+const managedPhrases = () => {
+  const round = state.round;
+  const builtins = PHRASES.map(text => ({ text, source: "builtin" }));
+  const added = [...state.extraPhrases]
+    .sort((a, b) => toMillis(a.addedAt) - toMillis(b.addedAt))
+    .map(p => ({ text: p.text, source: "added", id: p.id, fromRound: Number(p.fromRound) }));
+  return [...builtins, ...added]
+    .filter(entry => !isRemovedBy(entry, round))
+    .map(entry => ({ ...entry, leaving: pendingRemoval(entry, round), upcoming: entry.source === "added" && entry.fromRound > round }));
+};
+
+const renderPhraseManager = () => {
+  const box = $("phrase-list");
+  if (!box) return;
+  const nextCount = phraseEntries(state.round + 1).length;
+  $("phrase-count").textContent = `${nextCount} phrases next round`;
+  const filter = normalizePhrase($("phrase-filter").value);
+  const items = managedPhrases().filter(entry => !filter || normalizePhrase(entry.text).includes(filter));
+  if (!items.length) {
+    box.innerHTML = '<p class="empty">No phrases match that search.</p>';
+    return;
+  }
+  const list = document.createElement("ul");
+  list.className = "phrase-list";
+  items.forEach(entry => {
+    const li = document.createElement("li");
+    if (entry.leaving) li.classList.add("leaving");
+    const text = document.createElement("span");
+    text.className = "text";
+    text.textContent = entry.text;
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.textContent = entry.leaving ? "Leaving next round" : entry.upcoming ? "New next round" : entry.source === "added" ? "Added" : "";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn";
+    if (entry.leaving) {
+      btn.textContent = "Keep it";
+      btn.dataset.action = "keep";
+      btn.dataset.removalId = entry.leaving.id;
+    } else {
+      btn.textContent = "Remove";
+      btn.dataset.action = "remove";
+    }
+    btn.setAttribute("aria-label", `${btn.textContent}: ${entry.text}`);
+    btn.dataset.source = entry.source;
+    btn.dataset.text = entry.text;
+    if (entry.id) btn.dataset.id = entry.id;
+    if (entry.upcoming) btn.dataset.upcoming = "1";
+    li.append(text, tag, btn);
+    list.append(li);
+  });
+  box.replaceChildren(list);
+};
+
+$("phrase-filter").addEventListener("input", renderPhraseManager);
+
+$("phrase-list").addEventListener("click", async e => {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    if (btn.dataset.action === "keep") {
+      await deleteDoc(doc(db, "removedPhrases", btn.dataset.removalId));
+      showNote("Kept. That phrase stays in the game.");
+      return;
+    }
+    if (phraseEntries(state.round + 1).length - 1 < CARD_SQUARES) {
+      showNote(`The game needs at least ${CARD_SQUARES} phrases to fill a card. Add another before removing this one.`);
+      btn.disabled = false;
+      return;
+    }
+    if (btn.dataset.upcoming) {
+      // Not on anyone's card yet, so it can go right away.
+      await deleteDoc(doc(db, "phrases", btn.dataset.id));
+      showNote("Removed.");
+      return;
+    }
+    // Already on cards this round, so it leaves when the next round starts.
+    await addDoc(collection(db, "removedPhrases"), {
+      text: btn.dataset.text,
+      source: btn.dataset.source,
+      phraseId: btn.dataset.id || null,
+      fromRound: state.round + 1,
+      removedAt: serverTimestamp()
+    });
+    showNote(`Removed. It comes off cards starting round ${state.round + 1}.`);
+  } catch {
+    btn.disabled = false;
+    showNote("Couldn't change that phrase. Make sure your account is listed as an admin and the latest rules are published.");
   }
 });
 
@@ -672,15 +858,18 @@ const renderWinners = () => {
 
 /* ---------- Rounds ---------- */
 
+const readPhrases = snap => snap.docs
+  .map(d => ({ id: d.id, ...d.data() }))
+  .filter(p => typeof p.text === "string" && p.text.trim());
+
 const loadExtraPhrases = async () => {
-  try {
-    const snap = await getDocs(collection(db, "phrases"));
-    state.extraPhrases = snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(p => typeof p.text === "string" && p.text.trim());
-  } catch {
-    // Keep whatever we had; the built-in phrases still make a full card.
-  }
+  const [added, removed] = await Promise.all([
+    getDocs(collection(db, "phrases")).catch(() => null),
+    getDocs(collection(db, "removedPhrases")).catch(() => null)
+  ]);
+  // On a failed read, keep whatever we had; the built-in phrases still make a full card.
+  if (added) state.extraPhrases = readPhrases(added);
+  if (removed) state.removedPhrases = readPhrases(removed);
 };
 
 const loadRound = async round => {
@@ -694,6 +883,7 @@ const loadRound = async round => {
   renderGrid();
   renderStandings();
   renderWinners();
+  if (state.isAdmin) { renderPhraseManager(); renderSuggestions(); }
   const needsSave = !saved || saved.round !== round || saved.name !== displayName();
   if (needsSave) savePlayer();
 };
@@ -739,6 +929,17 @@ const startSession = async () => {
     }, () => {
       $("suggestions").innerHTML = '<p class="empty">Suggestions are unavailable right now. Check that the latest security rules are published.</p>';
     }));
+    // Live phrase lists so the admin's view updates as soon as something is added or removed.
+    // Cards don't change until the next round, because dealing goes by each entry's round.
+    const refreshAdminLists = () => { if (state.card.length) { renderPhraseManager(); renderSuggestions(); } };
+    state.unsubscribers.push(onSnapshot(collection(db, "phrases"), snap => {
+      state.extraPhrases = readPhrases(snap);
+      refreshAdminLists();
+    }, () => {}));
+    state.unsubscribers.push(onSnapshot(collection(db, "removedPhrases"), snap => {
+      state.removedPhrases = readPhrases(snap);
+      refreshAdminLists();
+    }, () => {}));
   }
 
   let firstRound = true;

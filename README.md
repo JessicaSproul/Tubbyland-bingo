@@ -66,7 +66,16 @@ Send the GitHub Pages link to everyone. They sign in with Google or create an ac
 - Anyone signed in can click **Suggest a phrase** under their card and send in a new square.
 - Admins see the waiting suggestions at the bottom of the Winners board. Fix any typos in the box, then click **Add to game** or **Dismiss**.
 - Added phrases join the pool starting with the next round, so nobody's current card changes. They're saved in Firestore under `phrases`; delete a document there to take one back out.
-- If you set the game up before this feature existed, paste the latest `firestore.rules` into Firebase and click **Publish** again, or suggestions won't save.
+- Suggestions that read a lot like a phrase already in the game, or like another waiting suggestion, get a yellow **Looks similar to** flag showing the closest matches. It's only a heads-up: you can still add or dismiss them.
+
+### Removing phrases
+- Admins can open **Manage card phrases** at the bottom of the Winners board to search every phrase and click **Remove**.
+- A removed phrase stays on this round's cards and comes off when the next round starts. Until then it shows as "Leaving next round" with a **Keep it** button to undo.
+- An added phrase that hasn't reached any cards yet is removed right away.
+- The game keeps at least 24 phrases so every card can be filled.
+
+### Rules updates
+- If you set the game up before these features existed, paste the latest `firestore.rules` into Firebase and click **Publish** again, or suggestions won't save.
 
 ## Changing phrases
 Edit `phrases.js` on GitHub (click the file, then the pencil icon) and commit. Keep at least 24 phrases. The site updates within a minute or two; players may need to refresh.
