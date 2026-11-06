@@ -62,6 +62,16 @@ Send the GitHub Pages link to everyone. They sign in with Google or create an ac
 - **Winners board** lists everyone who got BINGO this round, in order.
 - **Start a new round** (admins only) clears the Winners board and deals everyone a fresh card.
 
+## Picking a board
+- At the start of each round, every player picks one of four boards: Tinky Winky's, Dipsy's, Laa-Laa's or Po's. Each one is a different card, and all four are unique to that player.
+- It's luck of the draw: cards stay face down until a player locks in a Tubby. Their choice is kept for the whole round on every device.
+
+## Monthly leaderboard
+- Every BINGO is saved permanently, so the Winners board also shows **Top Tubbies** for the current month.
+- Points by finishing order in each round: 1st BINGO earns 3, 2nd earns 2, every later BINGO earns 1. Ties are broken by number of wins.
+- The board resets on its own on the 1st of each month. Wins from before this feature was added aren't counted.
+- To remove a win (for example, a test), delete its document in Firestore under `wins`.
+
 ## Phrase suggestions
 - Anyone signed in can click **Suggest a phrase** under their card and send in a new square.
 - Admins see the waiting suggestions at the bottom of the Winners board. Fix any typos in the box, then click **Add to game** or **Dismiss**.

@@ -7,7 +7,8 @@ import {
   sendPasswordResetEmail, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, collection, onSnapshot, getDocs, writeBatch, serverTimestamp
+  getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, collection, onSnapshot, getDocs, writeBatch, serverTimestamp,
+  query, where, Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const TUBBIES = [
@@ -100,6 +101,9 @@ const state = {
   extraPhrases: [],
   removedPhrases: [],
   suggestions: [],
+  board: null,
+  previewBoard: null,
+  monthWins: [],
   unsubscribers: []
 };
 
@@ -246,20 +250,113 @@ const phraseEntries = round => [
     .map(p => ({ text: p.text, source: "added", id: p.id }))
 ].filter(entry => !isRemovedBy(entry, round));
 
-const dealCard = () => {
-  const rand = seededRandom(hashString(`${state.user.uid}|round-${state.round}`));
+// Each player gets four different cards per round, one per Tubby. "legacy" is the single
+// card from before boards existed, kept so nobody's card changes mid-round on update day.
+const dealFor = boardKey => {
+  const seed = boardKey === "legacy" ? `${state.user.uid}|round-${state.round}` : `${state.user.uid}|round-${state.round}|${boardKey}`;
+  const rand = seededRandom(hashString(seed));
   const pool = phraseEntries(state.round).map(entry => entry.text);
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   const picks = pool.slice(0, CARD_SQUARES);
   picks.splice(FREE_INDEX, 0, "Tubby Custard");
-  state.card = picks;
+  return picks;
 };
+
+// No card is dealt until the player locks in a board, so the pick is pure luck.
+const dealCard = () => { state.card = state.board ? dealFor(state.board) : []; };
+
+const boardName = key => {
+  const tubby = TUBBIES.find(t => t.key === key);
+  return tubby ? `${tubby.name}'s board` : "Your board";
+};
+
+/* ---------- Choosing a board ---------- */
+
+const renderBoardPicker = () => {
+  const choosing = !state.board;
+  document.body.classList.toggle("choosing", choosing);
+  grid.classList.toggle("previewing", choosing);
+  $("board-picker").hidden = !choosing;
+  const label = $("board-label");
+  label.hidden = choosing || state.board === "legacy";
+  if (!choosing && state.board !== "legacy") {
+    label.replaceChildren();
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.background = `var(--${state.board})`;
+    label.append(dot, `Playing ${boardName(state.board)}`);
+  }
+  if (!choosing) return;
+  $("pick-round").textContent = state.round;
+  const options = $("board-options");
+  options.replaceChildren(...TUBBIES.map(t => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "board-option";
+    btn.dataset.board = t.key;
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", String(state.previewBoard === t.key));
+    btn.style.setProperty("--board-color", `var(--${t.key})`);
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    btn.append(dot, t.name);
+    return btn;
+  }));
+  $("board-confirm").disabled = !state.previewBoard;
+  $("board-confirm").textContent = state.previewBoard ? `Draw ${boardName(state.previewBoard)}` : "Pick a Tubby first";
+};
+
+$("board-options").addEventListener("click", e => {
+  const btn = e.target.closest(".board-option");
+  if (!btn || state.board) return;
+  state.previewBoard = btn.dataset.board;
+  renderBoardPicker();
+  renderGrid();
+  $("board-options").querySelector(`[data-board="${state.previewBoard}"]`)?.focus();
+});
+
+$("board-options").addEventListener("keydown", e => {
+  if (!["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(e.key)) return;
+  e.preventDefault();
+  const i = TUBBIES.findIndex(t => t.key === state.previewBoard);
+  const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1;
+  const next = TUBBIES[(Math.max(i, 0) + (i < 0 ? 0 : step) + TUBBIES.length) % TUBBIES.length].key;
+  $("board-options").querySelector(`[data-board="${next}"]`)?.click();
+});
+
+$("board-confirm").addEventListener("click", () => {
+  if (state.board || !state.previewBoard) return;
+  state.board = state.previewBoard;
+  state.marks = {};
+  state.revealing = true;
+  dealCard();
+  renderBoardPicker();
+  renderGrid();
+  savePlayer();
+  statusEl.textContent = `You're playing ${boardName(state.board)}. Good luck!`;
+});
 
 const isMarked = idx => idx === FREE_INDEX || Boolean(state.marks[idx]);
 const winningLines = () => LINES.filter(line => line.cells.every(isMarked));
 const bestLineCount = () => Math.max(...LINES.map(line => line.cells.filter(isMarked).length));
 
+const renderFaceDown = () => {
+  grid.innerHTML = "";
+  for (let idx = 0; idx < CARD_SQUARES + 1; idx++) {
+    const cell = document.createElement("div");
+    cell.className = "cell face-down";
+    cell.setAttribute("role", "gridcell");
+    cell.setAttribute("aria-label", "Hidden square");
+    cell.style.animationDelay = `${(idx % 5 + Math.floor(idx / 5)) * 90}ms`;
+    grid.append(cell);
+  }
+  statusEl.textContent = state.previewBoard
+    ? `${boardName(state.previewBoard)} it is? Lock it in to flip your card.`
+    : "Pick a Tubby to draw your card. No peeking!";
+};
+
 const renderGrid = () => {
+  if (!state.board) { renderFaceDown(); return; }
   const lines = winningLines();
   const inLine = new Set(lines.flatMap(l => l.cells));
   grid.innerHTML = "";
@@ -296,6 +393,14 @@ const renderGrid = () => {
     grid.append(cell);
   });
   state.justPlaced = null;
+  if (state.revealing) {
+    // Flip the squares over one by one, corner to corner, right after the board is drawn.
+    grid.querySelectorAll(".cell").forEach((cell, idx) => {
+      cell.classList.add("reveal");
+      cell.style.animationDelay = `${(idx % 5 + Math.floor(idx / 5)) * 60}ms`;
+    });
+    state.revealing = false;
+  }
   const count = Object.keys(state.marks).length;
   statusEl.textContent = lines.length ? `BINGO on ${lines.map(l => l.name).join(", ")}!` : `${count} of ${CARD_SQUARES} squares marked`;
 };
@@ -327,6 +432,7 @@ const savePlayer = () => {
     name: displayName(),
     photoURL: user.photoURL || null,
     round: state.round,
+    board: state.board,
     marks: { ...state.marks },
     marked: Object.keys(state.marks).length,
     best: bestLineCount(),
@@ -344,6 +450,7 @@ const queueSave = () => {
 
 const placeMark = (idx, tubbyKey) => {
   if (idx === FREE_INDEX) return;
+  if (!state.board) { statusEl.textContent = "Pick your board first, then start marking."; return; }
   state.marks[idx] = tubbyKey;
   state.justPlaced = idx;
   renderGrid();
@@ -377,6 +484,18 @@ const checkForBingo = async () => {
     });
   } catch {
     showNote("Couldn't post your win to the board just now. Your card still shows it.");
+  }
+  // A permanent record for the monthly leaderboard. One per player per round.
+  try {
+    await setDoc(doc(db, "wins", `${state.user.uid}_${state.round}`), {
+      uid: state.user.uid,
+      name: displayName(),
+      photoURL: state.user.photoURL || null,
+      round: state.round,
+      at: serverTimestamp()
+    });
+  } catch {
+    // Already recorded for this round, or offline. The round's winners board still has it.
   }
 };
 
@@ -479,6 +598,7 @@ grid.addEventListener("click", e => {
   if (!cell) return;
   const idx = Number(cell.dataset.idx);
   if (idx === FREE_INDEX || state.marks[idx]) return;
+  if (!state.board) { statusEl.textContent = "Pick your board first, then start marking."; return; }
   if (!state.selected) {
     statusEl.textContent = "Pick a Tubby from the tray first, then tap the square.";
     return;
@@ -503,6 +623,7 @@ grid.addEventListener("keydown", e => {
 });
 
 $("hug").addEventListener("click", () => {
+  if (!state.board) return;
   state.marks = {};
   renderGrid();
   queueSave();
@@ -856,6 +977,81 @@ const renderWinners = () => {
   $("board").replaceChildren(list);
 };
 
+/* ---------- Monthly leaderboard ---------- */
+
+// Points per BINGO, by finishing order within its round: 1st gets 3, 2nd gets 2, everyone after gets 1.
+const POINTS_BY_PLACE = [3, 2];
+const pointsFor = place => POINTS_BY_PLACE[place - 1] ?? 1;
+const monthStart = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); };
+const monthName = new Intl.DateTimeFormat(undefined, { month: "long" });
+
+const monthlyTotals = () => {
+  const start = monthStart().getTime();
+  const wins = state.monthWins.filter(w => toMillis(w.at) >= start);
+  const byRound = new Map();
+  wins.forEach(w => { if (!byRound.has(w.round)) byRound.set(w.round, []); byRound.get(w.round).push(w); });
+  const totals = new Map();
+  byRound.forEach(list => {
+    list.sort((a, b) => toMillis(a.at) - toMillis(b.at)).forEach((w, i) => {
+      const t = totals.get(w.uid) || { uid: w.uid, name: w.name, photoURL: w.photoURL, points: 0, wins: 0, firsts: 0 };
+      t.points += pointsFor(i + 1);
+      t.wins += 1;
+      if (i === 0) t.firsts += 1;
+      t.name = w.name || t.name;
+      t.photoURL = w.photoURL || t.photoURL;
+      totals.set(w.uid, t);
+    });
+  });
+  return [...totals.values()].sort((a, b) => (b.points - a.points) || (b.wins - a.wins) || (b.firsts - a.firsts) || (a.name || "").localeCompare(b.name || ""));
+};
+
+const renderMonthly = () => {
+  $("month-title").textContent = `Top Tubbies of ${monthName.format(new Date())}`;
+  const rows = monthlyTotals();
+  const box = $("monthly");
+  if (!rows.length) {
+    box.innerHTML = '<p class="empty">No BINGOs yet this month. The first one gets 3 points.</p>';
+    return;
+  }
+  const max = rows[0].points;
+  const list = document.createElement("ol");
+  list.className = "monthly";
+  let rank = 0;
+  let prev = null;
+  rows.forEach((r, i) => {
+    if (!prev || prev.points !== r.points || prev.wins !== r.wins) rank = i + 1;
+    prev = r;
+    const li = document.createElement("li");
+    if (rank === 1) li.classList.add("lead");
+    if (r.uid === state.user?.uid) li.classList.add("me");
+    const place = document.createElement("span");
+    place.className = "place";
+    place.textContent = rank;
+    const body = document.createElement("div");
+    const top = document.createElement("div");
+    top.className = "top";
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = r.name || "A Tubby fan";
+    const score = document.createElement("span");
+    score.className = "score";
+    score.textContent = `${r.points} pts · ${r.wins} ${r.wins === 1 ? "win" : "wins"}`;
+    top.append(who, score);
+    const track = document.createElement("div");
+    track.className = "track";
+    track.setAttribute("role", "img");
+    track.setAttribute("aria-label", `${r.name}: ${r.points} points from ${r.wins} wins, ${r.firsts} first place`);
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    bar.style.width = `${Math.max(4, Math.round((r.points / max) * 100))}%`;
+    track.append(bar);
+    body.append(top, track);
+    li.append(place, avatarFor(r.name, r.photoURL), body);
+    list.append(li);
+  });
+  box.replaceChildren(list);
+};
+
 /* ---------- Rounds ---------- */
 
 const readPhrases = snap => snap.docs
@@ -875,16 +1071,23 @@ const loadExtraPhrases = async () => {
 const loadRound = async round => {
   await loadExtraPhrases();
   state.round = round;
-  dealCard();
   const snap = await getDoc(doc(db, "players", state.user.uid)).catch(() => null);
   const saved = snap?.exists() ? snap.data() : null;
-  state.marks = saved && saved.round === round && saved.marks ? { ...saved.marks } : {};
+  const sameRound = Boolean(saved && saved.round === round);
+  const hadMarks = sameRound && saved.marks && Object.keys(saved.marks).length > 0;
+  const validBoard = sameRound && TUBBIES.some(t => t.key === saved.board);
+  state.board = validBoard ? saved.board : hadMarks ? "legacy" : null;
+  state.previewBoard = null;
+  dealCard();
+  state.marks = sameRound && state.board && saved.marks ? { ...saved.marks } : {};
   state.wonRound = winningLines().length ? round : null;
+  renderBoardPicker();
   renderGrid();
   renderStandings();
   renderWinners();
+  renderMonthly();
   if (state.isAdmin) { renderPhraseManager(); renderSuggestions(); }
-  const needsSave = !saved || saved.round !== round || saved.name !== displayName();
+  const needsSave = !sameRound || saved.name !== displayName() || (saved.board ?? null) !== state.board;
   if (needsSave) savePlayer();
 };
 
@@ -958,6 +1161,15 @@ const startSession = async () => {
     renderStandings();
   }, () => {
     $("standings").innerHTML = '<p class="empty">Standings are unavailable right now. Your card still works.</p>';
+  }));
+
+  // Last month's wins come along too, so the board rolls over on its own if the page stays open.
+  const since = new Date(monthStart().getFullYear(), monthStart().getMonth() - 1, 1);
+  state.unsubscribers.push(onSnapshot(query(collection(db, "wins"), where("at", ">=", Timestamp.fromDate(since))), snap => {
+    state.monthWins = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderMonthly();
+  }, () => {
+    $("monthly").innerHTML = '<p class="empty">The monthly leaderboard is unavailable right now. Check that the latest security rules are published.</p>';
   }));
 
   state.unsubscribers.push(onSnapshot(collection(db, "winners"), snap => {

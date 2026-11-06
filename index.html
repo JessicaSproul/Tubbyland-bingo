@@ -143,6 +143,41 @@ body.selecting .cell:not(.marked):not(.free):hover { border-color: var(--accent)
 .standings .track { height: 12px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: 3px; }
 .standings .bar { height: 100%; border-radius: 999px; min-width: 6px; transition: width .4s ease; }
 .standings li.me .who::after { content: " (you)"; color: var(--muted); font-weight: 700; }
+/* Board picker */
+.board-picker { background: var(--surface); border: 3px solid var(--sun); border-radius: 20px; padding: 14px 16px; margin-bottom: 12px; display: grid; gap: 10px; }
+.board-picker h2 { font-size: 20px; font-weight: 600; }
+.board-picker .sub { color: var(--muted); font-size: 13px; margin: -6px 0 0; }
+.board-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 480px) { .board-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.board-option { border: 2px solid var(--line); background: var(--surface-2); border-radius: 14px; padding: 8px 6px; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+.board-option .dot { background: var(--board-color); }
+.board-option[aria-checked="true"] { border-color: var(--board-color); background: var(--surface); box-shadow: inset 0 0 0 2px var(--board-color); }
+.board-picker .btn.primary { justify-self: start; }
+.dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; flex: none; }
+.board-label { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+.grid.previewing .cell { border-style: dashed; cursor: default; }
+.cell.face-down { background: color-mix(in srgb, var(--muted) 35%, var(--surface-2)); border-color: color-mix(in srgb, var(--muted) 45%, var(--line)); animation: hidden-pulse 2.4s ease-in-out infinite; }
+@keyframes hidden-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+.cell.reveal { animation: flip-in .45s ease-out both; }
+@keyframes flip-in { from { transform: rotateY(90deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cell.face-down, .cell.reveal { animation: none; } }
+.board-picker .btn.primary:disabled { opacity: .5; cursor: not-allowed; }
+body.choosing .tray-panel { opacity: .45; pointer-events: none; }
+
+/* Monthly leaderboard */
+.month { margin-top: 14px; padding-top: 12px; border-top: 2px dashed var(--line); display: grid; gap: 8px; }
+.month h3 { font-size: 16px; font-weight: 600; }
+.month .sub { margin: -6px 0 2px; }
+.monthly { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.monthly li { display: grid; grid-template-columns: 20px 30px minmax(0, 1fr); gap: 8px; align-items: center; }
+.monthly .place { font-family: var(--font-display); font-weight: 700; font-size: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+.monthly .top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.monthly .who { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.monthly .score { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.monthly .track { height: 12px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: 3px; }
+.monthly .bar { height: 100%; border-radius: 999px; background: var(--dipsy); transition: width .4s ease; }
+.monthly li.lead .bar { background: var(--tinky); }
+.monthly li.me .who::after { content: " (you)"; color: var(--muted); font-weight: 700; }
 .owner-tools { margin-top: 12px; padding-top: 12px; border-top: 2px dashed var(--line); display: grid; gap: 8px; }
 .confirm { display: grid; gap: 8px; font-size: 13px; }
 .confirm .row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -318,6 +353,13 @@ body.selecting .cell:not(.marked):not(.free):hover { border-color: var(--accent)
     <div class="game" id="game-view" hidden>
       <section class="card-panel" aria-label="Your bingo card">
         <p class="howto">Drag a Tubby onto a square. Or tap a Tubby, then tap the square. To take a mark back, drag it off the card or double-tap it.</p>
+        <div class="board-picker" id="board-picker" hidden>
+          <h2>Pick your board for round <span id="pick-round">1</span></h2>
+          <p class="sub">Each Tubby is holding a different card, dealt just for you. No peeking: pick one, lock it in, and it's yours for the whole round.</p>
+          <div class="board-options" id="board-options" role="radiogroup" aria-label="Boards"></div>
+          <button class="btn primary" id="board-confirm" type="button" disabled>Pick a Tubby first</button>
+        </div>
+        <p class="board-label" id="board-label" hidden></p>
         <div class="letters" aria-hidden="true"><span>T</span><span>U</span><span>B</span><span>B</span><span>Y</span></div>
         <div class="grid" id="grid" role="grid" aria-label="Your bingo card"></div>
         <div class="card-actions">
@@ -353,6 +395,11 @@ body.selecting .cell:not(.marked):not(.free):hover { border-color: var(--accent)
           <p class="sub" id="round-label">Round 1</p>
           <div id="board"><p class="empty">Checking the board…</p></div>
           <p class="board-note" id="board-note" hidden></p>
+          <div class="month">
+            <h3 id="month-title">Top Tubbies this month</h3>
+            <p class="sub">Each round, the first BINGO earns 3 points, the second earns 2, and every BINGO after that earns 1.</p>
+            <div id="monthly"><p class="empty">Loading this month…</p></div>
+          </div>
           <div class="owner-tools" id="owner-tools" hidden>
             <button class="btn" id="new-round" type="button">Start a new round</button>
             <div class="confirm" id="confirm" hidden>
