@@ -7,7 +7,7 @@ import {
   sendPasswordResetEmail, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, collection, onSnapshot, getDocs, writeBatch, serverTimestamp
+  getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, collection, onSnapshot, getDocs, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const TUBBIES = [
@@ -97,6 +97,8 @@ const state = {
   wonRound: null,
   players: [],
   winners: [],
+  extraPhrases: [],
+  suggestions: [],
   unsubscribers: []
 };
 
@@ -223,7 +225,13 @@ const statusEl = $("status");
 
 const dealCard = () => {
   const rand = seededRandom(hashString(`${state.user.uid}|round-${state.round}`));
-  const pool = [...PHRASES];
+  // Approved suggestions join the pool from the round they were added for, in a fixed
+  // order, so a card never changes partway through a round.
+  const extras = state.extraPhrases
+    .filter(p => Number(p.fromRound) <= state.round)
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .map(p => p.text);
+  const pool = [...PHRASES, ...extras];
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   const picks = pool.slice(0, CARD_SQUARES);
   picks.splice(FREE_INDEX, 0, "Tubby Custard");
@@ -484,6 +492,114 @@ $("hug").addEventListener("click", () => {
   statusEl.textContent = "Big hug! Your card is clear.";
 });
 
+/* ---------- Phrase suggestions ---------- */
+
+const SUGGEST_MAX = 90;
+const suggestDialog = $("suggest-dialog");
+const suggestText = $("suggest-text");
+const normalizePhrase = text => text.toLowerCase().replace(/[“”"'‘’!?.,*-]/g, "").replace(/\s+/g, " ").trim();
+const setSuggestError = text => { $("suggest-error").textContent = text; $("suggest-error").hidden = !text; };
+const updateSuggestCount = () => { $("suggest-count").textContent = `${suggestText.value.length}/${SUGGEST_MAX}`; };
+
+$("suggest").addEventListener("click", () => {
+  suggestText.value = "";
+  updateSuggestCount();
+  setSuggestError("");
+  suggestDialog.showModal();
+  suggestText.focus();
+});
+$("suggest-cancel").addEventListener("click", () => suggestDialog.close());
+suggestDialog.addEventListener("click", e => { if (e.target === suggestDialog) suggestDialog.close(); });
+suggestText.addEventListener("input", () => { updateSuggestCount(); setSuggestError(""); });
+
+$("suggest-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const text = suggestText.value.replace(/\s+/g, " ").trim();
+  if (!text) { setSuggestError("Type a phrase first."); return; }
+  if (text.length > SUGGEST_MAX) { setSuggestError(`Keep it to ${SUGGEST_MAX} characters so it fits on a square.`); return; }
+  const known = [...PHRASES, ...state.extraPhrases.map(p => p.text)].map(normalizePhrase);
+  if (known.includes(normalizePhrase(text))) { setSuggestError("That one's already in the game."); return; }
+  $("suggest-submit").disabled = true;
+  try {
+    await addDoc(collection(db, "suggestions"), {
+      text,
+      uid: state.user.uid,
+      name: displayName(),
+      at: serverTimestamp()
+    });
+    suggestDialog.close();
+    statusEl.textContent = "Thanks! Your phrase went to the suggestion box.";
+  } catch {
+    setSuggestError("Couldn't send your suggestion. Check your connection and try again.");
+  } finally {
+    $("suggest-submit").disabled = false;
+  }
+});
+
+const renderSuggestions = () => {
+  const box = $("suggestions");
+  // Keep any edits the admin is in the middle of when the list refreshes.
+  const drafts = new Map([...box.querySelectorAll("li")].map(li => [li.dataset.id, li.querySelector("input").value]));
+  const items = [...state.suggestions].sort((a, b) => toMillis(a.at) - toMillis(b.at));
+  $("suggest-review-title").textContent = items.length ? `Phrase suggestions (${items.length})` : "Phrase suggestions";
+  if (!items.length) {
+    box.innerHTML = '<p class="empty">No suggestions waiting.</p>';
+    return;
+  }
+  const list = document.createElement("ul");
+  list.className = "suggestions";
+  items.forEach(item => {
+    const li = document.createElement("li");
+    li.dataset.id = item.id;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.maxLength = SUGGEST_MAX;
+    input.value = drafts.get(item.id) ?? item.text ?? "";
+    input.setAttribute("aria-label", `Phrase suggested by ${item.name || "a player"}`);
+    const from = document.createElement("span");
+    from.className = "from";
+    from.textContent = `Suggested by ${item.name || "a player"}`;
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = '<button class="btn primary" type="button" data-action="add">Add to game</button><button class="btn" type="button" data-action="dismiss">Dismiss</button>';
+    li.append(input, from, row);
+    list.append(li);
+  });
+  box.replaceChildren(list);
+};
+
+$("suggestions").addEventListener("click", async e => {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn) return;
+  const li = btn.closest("li");
+  const id = li.dataset.id;
+  const item = state.suggestions.find(s => s.id === id);
+  li.querySelectorAll("button").forEach(b => { b.disabled = true; });
+  try {
+    if (btn.dataset.action === "dismiss") {
+      await deleteDoc(doc(db, "suggestions", id));
+      return;
+    }
+    const text = li.querySelector("input").value.replace(/\s+/g, " ").trim();
+    if (!text) { showNote("Type the phrase before adding it."); li.querySelectorAll("button").forEach(b => { b.disabled = false; }); return; }
+    const nextRound = state.round + 1;
+    const batch = writeBatch(db);
+    batch.set(doc(collection(db, "phrases")), {
+      text,
+      fromRound: nextRound,
+      suggestedBy: item?.name || null,
+      addedAt: serverTimestamp()
+    });
+    batch.delete(doc(db, "suggestions", id));
+    await batch.commit();
+    state.extraPhrases.push({ id: "pending", text, fromRound: nextRound });
+    showNote(`Added. It can show up on cards starting round ${nextRound}.`);
+  } catch {
+    li.querySelectorAll("button").forEach(b => { b.disabled = false; });
+    showNote("Couldn't update that suggestion. Make sure your account is listed as an admin.");
+  }
+});
+
 /* ---------- Standings and winners ---------- */
 
 const showNote = text => { $("board-note").textContent = text; $("board-note").hidden = !text; };
@@ -556,7 +672,19 @@ const renderWinners = () => {
 
 /* ---------- Rounds ---------- */
 
+const loadExtraPhrases = async () => {
+  try {
+    const snap = await getDocs(collection(db, "phrases"));
+    state.extraPhrases = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(p => typeof p.text === "string" && p.text.trim());
+  } catch {
+    // Keep whatever we had; the built-in phrases still make a full card.
+  }
+};
+
 const loadRound = async round => {
+  await loadExtraPhrases();
   state.round = round;
   dealCard();
   const snap = await getDoc(doc(db, "players", state.user.uid)).catch(() => null);
@@ -604,6 +732,15 @@ const startSession = async () => {
   state.isAdmin = Boolean(adminSnap?.exists());
   $("owner-tools").hidden = !state.isAdmin;
 
+  if (state.isAdmin) {
+    state.unsubscribers.push(onSnapshot(collection(db, "suggestions"), snap => {
+      state.suggestions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderSuggestions();
+    }, () => {
+      $("suggestions").innerHTML = '<p class="empty">Suggestions are unavailable right now. Check that the latest security rules are published.</p>';
+    }));
+  }
+
   let firstRound = true;
   state.unsubscribers.push(onSnapshot(doc(db, "config", "game"), snap => {
     const round = snap.exists() && Number(snap.data().round) > 0 ? Number(snap.data().round) : 1;
@@ -635,6 +772,8 @@ onAuthStateChanged(auth, user => {
   state.user = user;
   state.players = [];
   state.winners = [];
+  state.suggestions = [];
+  if (suggestDialog.open) suggestDialog.close();
   if (!user) {
     renderUserChip();
     setAuthMode(false);

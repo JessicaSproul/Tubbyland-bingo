@@ -33,7 +33,7 @@ html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area
 body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
 [hidden] { display: none !important; }
 h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
-button, input { font: inherit; color: inherit; }
+button, input, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 .wrap { max-width: 1100px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
@@ -168,6 +168,27 @@ body.selecting .cell:not(.marked):not(.free):hover { border-color: var(--accent)
 .ok { color: var(--dipsy); font-weight: 700; font-size: 13px; margin: 0; }
 .setup code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
 
+/* Phrase suggestions */
+.suggest-dialog { border: 3px solid var(--sun); border-radius: 24px; padding: 0; width: calc(100% - 32px); max-width: 440px; background: var(--surface); color: var(--fg); }
+.suggest-dialog::backdrop { background: rgba(20, 40, 20, .55); }
+.suggest-dialog form { padding: 24px 22px 20px; display: grid; gap: 12px; }
+.suggest-dialog h2 { font-size: 26px; }
+.suggest-dialog .lead { color: var(--muted); font-size: 14px; margin: -6px 0 0; }
+.suggest-dialog textarea { border: 2px solid var(--line); background: var(--bg); border-radius: 12px; padding: 10px 12px; width: 100%; min-height: 88px; resize: vertical; }
+.suggest-dialog textarea:focus { border-color: var(--accent); outline: none; }
+.suggest-dialog .count { justify-self: end; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.suggest-dialog .row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.suggest-review { display: grid; gap: 8px; margin-top: 6px; }
+.suggest-review h3 { font-size: 16px; font-weight: 600; }
+.suggest-review .sub { margin: -6px 0 2px; }
+.suggestions { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.suggestions li { background: var(--surface-2); border-radius: 12px; padding: 10px; display: grid; gap: 6px; }
+.suggestions input { border: 2px solid var(--line); background: var(--bg); border-radius: 10px; padding: 6px 10px; width: 100%; font-weight: 700; }
+.suggestions input:focus { border-color: var(--accent); outline: none; }
+.suggestions .from { font-size: 12px; color: var(--muted); }
+.suggestions .row { display: flex; gap: 6px; flex-wrap: wrap; }
+.suggestions .btn { padding: 4px 12px; font-size: 13px; }
+
 /* Celebration */
 .celebrate { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(20, 40, 20, .55); padding: 16px; }
 .celebrate .box { background: var(--surface); border-radius: 28px; padding: 28px 24px; text-align: center; max-width: 420px; width: 100%; border: 3px solid var(--sun); }
@@ -282,6 +303,7 @@ body.selecting .cell:not(.marked):not(.free):hover { border-color: var(--accent)
         <div class="grid" id="grid" role="grid" aria-label="Your bingo card"></div>
         <div class="card-actions">
           <button class="btn" id="hug" type="button">Big Hug (clear my marks)</button>
+          <button class="btn" id="suggest" type="button">Suggest a phrase</button>
           <span class="status" id="status" aria-live="polite"></span>
         </div>
       </section>
@@ -321,6 +343,11 @@ body.selecting .cell:not(.marked):not(.free):hover { border-color: var(--accent)
                 <button class="btn" id="confirm-no" type="button">Cancel</button>
               </div>
             </div>
+            <div class="suggest-review">
+              <h3 id="suggest-review-title">Phrase suggestions</h3>
+              <p class="sub">Fix any typos, then add it. Added phrases show up on cards starting next round.</p>
+              <div id="suggestions"><p class="empty">No suggestions waiting.</p></div>
+            </div>
           </div>
         </section>
       </div>
@@ -336,6 +363,23 @@ body.selecting .cell:not(.marked):not(.free):hover { border-color: var(--accent)
     <button class="btn primary" id="celebrate-close" type="button">Again! Again!</button>
   </div>
 </div>
+
+<dialog class="suggest-dialog" id="suggest-dialog" aria-labelledby="suggest-title">
+  <form id="suggest-form" novalidate>
+    <h2 id="suggest-title">Suggest a phrase</h2>
+    <p class="lead">Heard something that deserves its own square? Send it in. Once it's approved, it can show up on everyone's cards starting next round.</p>
+    <div class="field">
+      <label for="suggest-text">Phrase</label>
+      <textarea id="suggest-text" maxlength="90" rows="3" placeholder="Who keeps moving the thermostat?"></textarea>
+      <span class="count" id="suggest-count" aria-live="polite">0/90</span>
+    </div>
+    <p class="error" id="suggest-error" hidden></p>
+    <div class="row">
+      <button class="btn" id="suggest-cancel" type="button">Cancel</button>
+      <button class="btn primary" id="suggest-submit" type="submit">Send suggestion</button>
+    </div>
+  </form>
+</dialog>
 
 <script type="module" src="./app.js"></script>
 </body>

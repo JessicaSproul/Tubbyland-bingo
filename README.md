@@ -8,7 +8,7 @@ Office catchphrase bingo. Players sign in, drag Tubbies onto their card, and rac
 |------|------------|
 | `index.html` | The page and its styles |
 | `app.js` | Game logic, sign-in, saving, boards |
-| `phrases.js` | The catchphrase list. Edit this to add or change squares |
+| `phrases.js` | The built-in catchphrase list. Edit this to add or change squares |
 | `firebase-config.js` | Your Firebase project settings (step 2) |
 | `firestore.rules` | Security rules to paste into Firebase (step 4) |
 
@@ -61,6 +61,12 @@ Send the GitHub Pages link to everyone. They sign in with Google or create an ac
 - **Standings** shows everyone in the current round. The bar length is squares marked. The color shows their best line: green is warming up, yellow is 3 in a row, red is one away, purple is BINGO.
 - **Winners board** lists everyone who got BINGO this round, in order.
 - **Start a new round** (admins only) clears the Winners board and deals everyone a fresh card.
+
+## Phrase suggestions
+- Anyone signed in can click **Suggest a phrase** under their card and send in a new square.
+- Admins see the waiting suggestions at the bottom of the Winners board. Fix any typos in the box, then click **Add to game** or **Dismiss**.
+- Added phrases join the pool starting with the next round, so nobody's current card changes. They're saved in Firestore under `phrases`; delete a document there to take one back out.
+- If you set the game up before this feature existed, paste the latest `firestore.rules` into Firebase and click **Publish** again, or suggestions won't save.
 
 ## Changing phrases
 Edit `phrases.js` on GitHub (click the file, then the pencil icon) and commit. Keep at least 24 phrases. The site updates within a minute or two; players may need to refresh.
