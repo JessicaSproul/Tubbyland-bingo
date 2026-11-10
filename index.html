@@ -156,11 +156,7 @@ body.selecting .cell:not(.marked):not(.free):hover { border-color: var(--accent)
 .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; flex: none; }
 .board-label { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; color: var(--muted); margin: 0 0 6px; }
 .grid.previewing .cell { border-style: dashed; cursor: default; }
-.cell.face-down { background: color-mix(in srgb, var(--muted) 35%, var(--surface-2)); border-color: color-mix(in srgb, var(--muted) 45%, var(--line)); animation: hidden-pulse 2.4s ease-in-out infinite; }
-@keyframes hidden-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
-.cell.reveal { animation: flip-in .45s ease-out both; }
-@keyframes flip-in { from { transform: rotateY(90deg); opacity: 0; } to { transform: none; opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .cell.face-down, .cell.reveal { animation: none; } }
+
 .board-picker .btn.primary:disabled { opacity: .5; cursor: not-allowed; }
 body.choosing .tray-panel { opacity: .45; pointer-events: none; }
 
@@ -355,9 +351,9 @@ body.choosing .tray-panel { opacity: .45; pointer-events: none; }
         <p class="howto">Drag a Tubby onto a square. Or tap a Tubby, then tap the square. To take a mark back, drag it off the card or double-tap it.</p>
         <div class="board-picker" id="board-picker" hidden>
           <h2>Pick your board for round <span id="pick-round">1</span></h2>
-          <p class="sub">Each Tubby is holding a different card, dealt just for you. No peeking: pick one, lock it in, and it's yours for the whole round.</p>
+          <p class="sub">Each Tubby is holding a different card, dealt just for you. Click a Tubby to switch to its card, then lock in your favorite. You keep it for the whole round.</p>
           <div class="board-options" id="board-options" role="radiogroup" aria-label="Boards"></div>
-          <button class="btn primary" id="board-confirm" type="button" disabled>Pick a Tubby first</button>
+          <button class="btn primary" id="board-confirm" type="button">Play Tinky Winky's board</button>
         </div>
         <p class="board-label" id="board-label" hidden></p>
         <div class="letters" aria-hidden="true"><span>T</span><span>U</span><span>B</span><span>B</span><span>Y</span></div>

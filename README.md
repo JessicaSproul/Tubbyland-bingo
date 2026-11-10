@@ -64,7 +64,7 @@ Send the GitHub Pages link to everyone. They sign in with Google or create an ac
 
 ## Picking a board
 - At the start of each round, every player picks one of four boards: Tinky Winky's, Dipsy's, Laa-Laa's or Po's. Each one is a different card, and all four are unique to that player.
-- It's luck of the draw: cards stay face down until a player locks in a Tubby. Their choice is kept for the whole round on every device.
+- Clicking a Tubby switches the card to that Tubby's board, so players can compare all four, then they lock one in. Their choice is kept for the whole round on every device.
 
 ## Monthly leaderboard
 - Every BINGO is saved permanently, so the Winners board also shows **Top Tubbies** for the current month.

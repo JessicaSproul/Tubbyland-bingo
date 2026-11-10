@@ -102,7 +102,7 @@ const state = {
   removedPhrases: [],
   suggestions: [],
   board: null,
-  previewBoard: null,
+  previewBoard: TUBBIES[0].key,
   monthWins: [],
   unsubscribers: []
 };
@@ -262,8 +262,11 @@ const dealFor = boardKey => {
   return picks;
 };
 
-// No card is dealt until the player locks in a board, so the pick is pure luck.
-const dealCard = () => { state.card = state.board ? dealFor(state.board) : []; };
+// Before a board is locked in, the card shows whichever Tubby the player is previewing.
+const dealCard = () => {
+  const key = state.board || state.previewBoard;
+  state.card = key ? dealFor(key) : [];
+};
 
 const boardName = key => {
   const tubby = TUBBIES.find(t => t.key === key);
@@ -302,14 +305,14 @@ const renderBoardPicker = () => {
     btn.append(dot, t.name);
     return btn;
   }));
-  $("board-confirm").disabled = !state.previewBoard;
-  $("board-confirm").textContent = state.previewBoard ? `Draw ${boardName(state.previewBoard)}` : "Pick a Tubby first";
+  $("board-confirm").textContent = state.previewBoard ? `Play ${boardName(state.previewBoard)}` : "Pick a Tubby first";
 };
 
 $("board-options").addEventListener("click", e => {
   const btn = e.target.closest(".board-option");
   if (!btn || state.board) return;
   state.previewBoard = btn.dataset.board;
+  dealCard();
   renderBoardPicker();
   renderGrid();
   $("board-options").querySelector(`[data-board="${state.previewBoard}"]`)?.focus();
@@ -328,7 +331,6 @@ $("board-confirm").addEventListener("click", () => {
   if (state.board || !state.previewBoard) return;
   state.board = state.previewBoard;
   state.marks = {};
-  state.revealing = true;
   dealCard();
   renderBoardPicker();
   renderGrid();
@@ -340,23 +342,7 @@ const isMarked = idx => idx === FREE_INDEX || Boolean(state.marks[idx]);
 const winningLines = () => LINES.filter(line => line.cells.every(isMarked));
 const bestLineCount = () => Math.max(...LINES.map(line => line.cells.filter(isMarked).length));
 
-const renderFaceDown = () => {
-  grid.innerHTML = "";
-  for (let idx = 0; idx < CARD_SQUARES + 1; idx++) {
-    const cell = document.createElement("div");
-    cell.className = "cell face-down";
-    cell.setAttribute("role", "gridcell");
-    cell.setAttribute("aria-label", "Hidden square");
-    cell.style.animationDelay = `${(idx % 5 + Math.floor(idx / 5)) * 90}ms`;
-    grid.append(cell);
-  }
-  statusEl.textContent = state.previewBoard
-    ? `${boardName(state.previewBoard)} it is? Lock it in to flip your card.`
-    : "Pick a Tubby to draw your card. No peeking!";
-};
-
 const renderGrid = () => {
-  if (!state.board) { renderFaceDown(); return; }
   const lines = winningLines();
   const inLine = new Set(lines.flatMap(l => l.cells));
   grid.innerHTML = "";
@@ -393,15 +379,11 @@ const renderGrid = () => {
     grid.append(cell);
   });
   state.justPlaced = null;
-  if (state.revealing) {
-    // Flip the squares over one by one, corner to corner, right after the board is drawn.
-    grid.querySelectorAll(".cell").forEach((cell, idx) => {
-      cell.classList.add("reveal");
-      cell.style.animationDelay = `${(idx % 5 + Math.floor(idx / 5)) * 60}ms`;
-    });
-    state.revealing = false;
-  }
   const count = Object.keys(state.marks).length;
+  if (!state.board) {
+    statusEl.textContent = `Previewing ${boardName(state.previewBoard)}. Click the other Tubbies to switch cards, then lock one in to start marking.`;
+    return;
+  }
   statusEl.textContent = lines.length ? `BINGO on ${lines.map(l => l.name).join(", ")}!` : `${count} of ${CARD_SQUARES} squares marked`;
 };
 
@@ -1077,7 +1059,7 @@ const loadRound = async round => {
   const hadMarks = sameRound && saved.marks && Object.keys(saved.marks).length > 0;
   const validBoard = sameRound && TUBBIES.some(t => t.key === saved.board);
   state.board = validBoard ? saved.board : hadMarks ? "legacy" : null;
-  state.previewBoard = null;
+  state.previewBoard = TUBBIES[0].key;
   dealCard();
   state.marks = sameRound && state.board && saved.marks ? { ...saved.marks } : {};
   state.wonRound = winningLines().length ? round : null;
